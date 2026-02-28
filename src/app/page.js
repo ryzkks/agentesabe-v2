@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import JSZip from "jszip";
 import html2canvas from "html2canvas";
 
-// Auth via API route interna (evita CORS)
+const API_URL = "https://agentesabe-api.ryanvictorsantosofc.workers.dev";
 
 const FALLBACK_SUGGESTS = [
   "Por que o narcisista encanta estranhos e destrói quem ama?",
@@ -43,7 +43,7 @@ function getPhotoIds(query) {
 }
 
 async function callClaude(prompt) {
-  const res = await fetch("/api/claude", {
+  const res = await fetch(API_URL + "/claude", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: "claude-3-haiku-20240307", max_tokens: 4000, messages: [{ role: "user", content: prompt }] })
   });
@@ -157,10 +157,9 @@ export default function Home() {
     }
 
     try {
-      // Chamada via API route interna — sem CORS
-      const action = isReg ? "register" : "login";
-      const body = isReg ? { action, email, password, key } : { action, email, password };
-      const res = await fetch("/api/auth", {
+      const endpoint = isReg ? "/register" : "/login";
+      const body = isReg ? { email, password, key } : { email, password };
+      const res = await fetch(API_URL + endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
