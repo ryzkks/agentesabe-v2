@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import JSZip from "jszip";
 import html2canvas from "html2canvas";
 
-const API_URL = "https://agentesabe-api.ryanvictorsantosofc.workers.dev";
+// Auth via API route interna (evita CORS)
 
 const FALLBACK_SUGGESTS = [
   "Por que o narcisista encanta estranhos e destrói quem ama?",
@@ -43,7 +43,7 @@ function getPhotoIds(query) {
 }
 
 async function callClaude(prompt) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/claude", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: "claude-3-haiku-20240307", max_tokens: 4000, messages: [{ role: "user", content: prompt }] })
   });
@@ -140,7 +140,7 @@ export default function Home() {
 
   if (!isMounted) return null;
 
-  const handleAuth = async (e) => {
+  async function handleAuth(e) {
     e.preventDefault();
     const isReg = authTab === "reg";
     setAuthErr("");
@@ -157,33 +157,17 @@ export default function Home() {
     }
 
     try {
-      if (!API_URL.includes("SEU-USUARIO")) {
-        const endpoint = isReg ? "/register" : "/login";
-        const body = isReg ? { email, password, key } : { email, password };
-        const res = await fetch(API_URL + endpoint, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-        const data = await res.json();
-        if (!data.ok) { setAuthErr(data.error || "Erro de autenticação."); setAuthLoading(false); return; }
-        localStorage.setItem("ags_token", data.token);
-        loginUser(email);
-      } else {
-        if (isReg) {
-          if (password.length < 6) { setAuthErr("Senha mínimo 6 caracteres."); setAuthLoading(false); return; }
-          const DEMO_KEYS = ["AGS-2026-DEMO-0001", "AGS-2026-DEMO-0002", "AGS-TEST-ACSS-0001"];
-          if (!DEMO_KEYS.includes(key)) { setAuthErr("Chave inválida. Verifique seu e-mail."); setAuthLoading(false); return; }
-          const users = JSON.parse(localStorage.getItem("ags_users") || "{}");
-          if (users[email]) { setAuthErr("E-mail já cadastrado. Faça login."); setAuthLoading(false); return; }
-          users[email] = { password, key };
-          localStorage.setItem("ags_users", JSON.stringify(users));
-          loginUser(email);
-        } else {
-          const users = JSON.parse(localStorage.getItem("ags_users") || "{}");
-          if (!users[email] || users[email].password !== password) { setAuthErr("E-mail ou senha incorretos."); setAuthLoading(false); return; }
-          loginUser(email);
-        }
-      }
+      // Chamada via API route interna — sem CORS
+      const action = isReg ? "register" : "login";
+      const body = isReg ? { action, email, password, key } : { action, email, password };
+      const res = await fetch("/api/auth", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!data.ok) { setAuthErr(data.error || "Erro de autenticação."); setAuthLoading(false); return; }
+      localStorage.setItem("ags_token", data.token);
+      loginUser(email);
     } catch (err) {
       setAuthErr("Erro de conexão. Tente novamente.");
     } finally {
@@ -191,19 +175,19 @@ export default function Home() {
     }
   };
 
-  const loginUser = (email) => {
+  function loginUser(email) {
     setCurrentUser(email);
     localStorage.setItem("ags_session", email);
     gerarSugestoesSafe();
   };
 
-  const logout = () => {
+  function logout() {
     localStorage.removeItem("ags_session");
     localStorage.removeItem("ags_token");
     setCurrentUser(null);
   };
 
-  const buscarPerfil = async () => {
+  async function buscarPerfil() {
     const handle = igInput.trim().replace("@", "");
     if (!handle) { toast("Digite um @ válido", "err"); return; }
     setBuscarIgLoading(true);
@@ -228,7 +212,7 @@ export default function Home() {
     setBuscarIgLoading(false);
   };
 
-  const handleAvUpload = (e) => {
+  function handleAvUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -238,7 +222,7 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
-  const salvarPerfil = () => {
+  function salvarPerfil() {
     const handle = igInput.trim().replace("@", "") || currentUser || "eu";
     const newProfile = { handle, avatar: pendingAvatar };
     setProfile(newProfile);
@@ -247,7 +231,7 @@ export default function Home() {
     toast("Perfil configurado! ✦", "ok");
   };
 
-  const gerarSugestoesSafe = async () => {
+  async function gerarSugestoesSafe() {
     setSuggestLoading(true);
     setSuggests([]);
     try {
@@ -261,7 +245,7 @@ Retorne APENAS JSON: {"temas":["t1","t2","t3","t4","t5","t6"]}`);
     }
   };
 
-  const gerarIdeias = async () => {
+  async function gerarIdeias() {
     if (!tema) { toast("Digite ou escolha um tema", "err"); return; }
     setIdeasLoading(true);
     setStep(1.5);
@@ -280,7 +264,7 @@ Gere 4 ângulos DIFERENTES. Retorne APENAS JSON: {"ideias":[{"titulo":"...","des
     }
   };
 
-  const buscarImagens = (query) => {
+  function buscarImagens(query) {
     setCurrentImgQuery(query || "people emotions lifestyle");
     setBankImages([...Array(9)].map(() => null)); // Loading state
     setTimeout(() => {
@@ -295,7 +279,7 @@ Gere 4 ângulos DIFERENTES. Retorne APENAS JSON: {"ideias":[{"titulo":"...","des
     }, 500);
   };
 
-  const buscarMaisImagens = () => {
+  function buscarMaisImagens() {
     const themes = Object.values(PHOTO_THEMES);
     const ids = shuffleArr([...themes[Math.floor(Math.random() * themes.length)]]);
     const imgs = ids.map(id => ({
@@ -307,12 +291,12 @@ Gere 4 ângulos DIFERENTES. Retorne APENAS JSON: {"ideias":[{"titulo":"...","des
     toast("Novas fotos!", "ok");
   };
 
-  const pesquisaCustom = () => {
+  function pesquisaCustom() {
     const q = window.prompt("Buscar por tema:", currentImgQuery);
     if (q && q.trim()) buscarImagens(q.trim());
   };
 
-  const handleImgUpload = (e) => {
+  function handleImgUpload(e) {
     const files = Array.from(e.target.files);
     Promise.all(files.map(file => new Promise(res => {
       const reader = new FileReader();
@@ -325,7 +309,7 @@ Gere 4 ângulos DIFERENTES. Retorne APENAS JSON: {"ideias":[{"titulo":"...","des
     });
   };
 
-  const autoDistribuirImagens = (imgs) => {
+  function autoDistribuirImagens(imgs) {
     if (!currentData || !imgs.length) return;
     let idx = 0;
     setCurrentData(prev => {
@@ -342,7 +326,7 @@ Gere 4 ângulos DIFERENTES. Retorne APENAS JSON: {"ideias":[{"titulo":"...","des
     });
   };
 
-  const assignToNextEmpty = (img) => {
+  function assignToNextEmpty(img) {
     if (!currentData) return;
     setCurrentData(prev => {
       const newData = { ...prev };
@@ -356,7 +340,7 @@ Gere 4 ângulos DIFERENTES. Retorne APENAS JSON: {"ideias":[{"titulo":"...","des
     });
   };
 
-  const gerarSlides = async () => {
+  async function gerarSlides() {
     if (selIdx < 0) { toast("Selecione uma ideia", "err"); return; }
     setSlidesLoading(true);
     setCurrentData(null);
@@ -381,13 +365,13 @@ Gere 9 slides.`;
     }
   };
 
-  const aprovar = () => {
+  function aprovar() {
     setSlidesStatus("approved");
     setStep(4);
     toast("Carrossel aprovado! ✦", "ok");
   };
 
-  const rmImg = (idx) => {
+  function rmImg(idx) {
     setCurrentData(prev => {
       const nd = { ...prev };
       delete nd.slides[idx]._img;
@@ -395,7 +379,7 @@ Gere 9 slides.`;
     });
   };
 
-  const handleDrop = (e, idx) => {
+  function handleDrop(e, idx) {
     e.preventDefault();
     setDragOverIdx(null);
     if (!dragSrc || !currentData) return;
@@ -408,7 +392,7 @@ Gere 9 slides.`;
     toast("Imagem aplicada!", "ok");
   };
 
-  const downloadCommon = async (isZip) => {
+  async function downloadCommon(isZip) {
     if (!currentData?.slides?.length) { toast("Nenhum carrossel", "err"); return; }
     setShowDl(true);
     setDlProgress(0);
@@ -467,7 +451,7 @@ Gere 9 slides.`;
     }
   };
 
-  const avHTML = () => {
+  function avHTML() {
     const initials = (profile?.handle || "?").charAt(0).toUpperCase();
     if (profile?.avatar) return <img src={profile.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
     return <>{initials}</>;
